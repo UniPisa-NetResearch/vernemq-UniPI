@@ -59,6 +59,7 @@
     cleanup/2,
     force_disconnect/2,
     force_disconnect/3,
+    force_disconnect/4,
     set_delayed_will/3
 ]).
 
@@ -169,9 +170,12 @@ get_opts(Queue) when is_pid(Queue) ->
     save_sync_send_all_state_event(Queue, get_opts).
 
 force_disconnect(Queue, Reason) when is_pid(Queue) ->
-    force_disconnect(Queue, Reason, false).
+    force_disconnect(Queue, Reason, false, #{}).
 force_disconnect(Queue, Reason, DoCleanup) when is_pid(Queue) and is_boolean(DoCleanup) ->
-    gen_fsm:sync_send_all_state_event(Queue, {force_disconnect, Reason, DoCleanup}, infinity).
+    force_disconnect(Queue, Reason, DoCleanup, #{}).
+force_disconnect(Queue, Reason, DoCleanup, Properties)
+    when is_pid(Queue) and is_boolean(DoCleanup) and is_map(Properties) ->
+    gen_fsm:sync_send_all_state_event(Queue, {force_disconnect, Reason, DoCleanup, Properties}, infinity).
 
 set_delayed_will(Queue, Fun, Delay) when is_pid(Queue) ->
     gen_fsm:sync_send_all_state_event(Queue, {set_delayed_will, Fun, Delay}, infinity).
@@ -647,7 +651,7 @@ handle_sync_event(get_sessions, _From, StateName, #state{sessions = Sessions} = 
 handle_sync_event(get_opts, _From, StateName, #state{opts = Opts} = State) ->
     {reply, Opts, StateName, State};
 handle_sync_event(
-    {force_disconnect, Reason, DoCleanup},
+    {force_disconnect, Reason, DoCleanup, Properties},
     _From,
     StateName,
     #state{id = SId, sessions = Sessions, offline = #queue{queue = OfflineQ}} = State
@@ -671,7 +675,7 @@ handle_sync_event(
             ),
             {stop, normal, ok, State};
         false ->
-            disconnect_sessions(Reason, State),
+            disconnect_sessions(Reason, Properties, State),
             {reply, ok, StateName, State}
     end;
 handle_sync_event({set_delayed_will, Fun, Delay}, _From, StateName, State) ->
@@ -970,7 +974,9 @@ handle_waiting_acks_and_msgs(
             State
     end.
 
-disconnect_sessions(Reason, #state{sessions = Sessions}) ->
+disconnect_sessions(Reason, State) ->
+    disconnect_sessions(Reason, #{}, State).
+disconnect_sessions(Reason, Props, #state{sessions = Sessions}) ->
     maps:fold(
         fun(SessionPid, #session{}, _) ->
             %% before the session is going to die it
@@ -979,7 +985,7 @@ disconnect_sessions(Reason, #state{sessions = Sessions}) ->
             %% calling set_last_waiting_acks/2
             %% then the 'DOWN' message gets triggered
             %% finally deleting the session
-            vmq_mqtt_fsm_util:send(SessionPid, {disconnect, Reason}),
+            vmq_mqtt_fsm_util:send(SessionPid, {disconnect, Reason, Props}),
             ok
         end,
         ok,

@@ -49,6 +49,8 @@
 -callback force_disconnect(Queue :: pid(), Reason :: term()) -> ok | normal | term().
 -callback force_disconnect(Queue :: pid(), Reason :: term(), DoCleanup :: boolean()) ->
     ok | normal | term().
+-callback force_disconnect(Queue :: pid(), Reason :: term(), DoCleanup :: boolean(), Properties :: map()) ->
+    ok | normal | term().
 
 % Internal calls for Queue info or status
 -callback status(Queue :: pid()) ->
