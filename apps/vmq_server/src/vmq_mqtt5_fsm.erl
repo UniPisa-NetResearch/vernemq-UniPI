@@ -811,8 +811,10 @@ connected(#mqtt5_disconnect{properties = Properties, reason_code = RC}, State) -
     _ = vmq_metrics:incr({?MQTT5_DISCONNECT_RECEIVED, disconnect_rc2rcn(RC)}),
     terminate_by_client(RC, Properties, State);
 connected({disconnect, Reason}, State) ->
+    connected({disconnect, Reason, #{}}, State);
+connected({disconnect, Reason, Props}, State) ->
     ?LOG_DEBUG("stop due to disconnect", []),
-    terminate(Reason, State);
+    terminate(Reason, Props, State);
 connected(
     disconnect_max_conn_lifetime, State
 ) ->

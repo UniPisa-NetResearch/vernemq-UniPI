@@ -522,6 +522,8 @@ connected(
 ) ->
     {RetryFrames, NewRetryQueue} = handle_retry(RetryInterval, RetryQueue, WAcks),
     {State#state{retry_queue = NewRetryQueue}, RetryFrames};
+connected({disconnect, Reason, _Props}, State) ->
+    connected({disconnect, Reason}, State);
 connected({disconnect, Reason}, State) ->
     ?LOG_DEBUG("stop due to disconnect", []),
     terminate(Reason, State);
