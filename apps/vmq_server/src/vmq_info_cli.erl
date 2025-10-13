@@ -26,6 +26,7 @@ register_cli() ->
     vmq_session_disconnect_clients_cmd(),
     vmq_session_disconnect_batch_cmd(),
     vmq_session_reauthorize_cmd(),
+    vmq_session_redirect_cmd(),
     vmq_retain_show_cmd(),
     vmq_retain_delete_cmd(),
     vmq_retain_delete_expired_cmd(),
@@ -43,6 +44,7 @@ register_cli() ->
         ["vmq-admin", "session", "disconnect", "batch"], vmq_session_disconnect_batch_usage()
     ),
     clique:register_usage(["vmq-admin", "session", "reauthorize"], vmq_session_reauthorize_usage()),
+    clique:register_usage(["vmq-admin", "session", "redirect"], vmq_session_redirect_usage()),
     clique:register_usage(["vmq-admin", "retain"], retain_usage()),
     clique:register_usage(["vmq-admin", "retain", "show"], retain_show_usage()),
     clique:register_usage(["vmq-admin", "retain", "delete-expired"], retain_usage()),
@@ -390,6 +392,48 @@ vmq_session_reauthorize_cmd() ->
     end,
     clique:register_command(Cmd, KeySpecs, FlagSpecs, Callback).
 
+vmq_session_redirect_cmd() ->
+    Cmd = ["vmq-admin", "session", "redirect"],
+    KeySpecs = [
+        {'client-id', [{typecast, fun(ClientId) -> ClientId end}]},
+        {'reference', [{typecast, fun(ServerRef) -> ServerRef end}]}
+    ],
+    FlagSpecs = [
+        {mountpoint, [
+            {shortname, "m"},
+            {longname, "mountpoint"},
+            {typecast, fun(Mountpoint) -> Mountpoint end}
+        ]}
+    ],
+
+    Callback = fun
+        (_, [{'client-id', ClientId}, {'reference', ServerRef}], Flags) ->
+            Properties = #{?P_SERVER_REF => list_to_binary(ServerRef)},
+            QueryString0 = "SELECT queue_pid FROM sessions WHERE client_id =\"" ++ ClientId ++ "\"",
+            case proplists:get_value(mountpoint, Flags, "") of
+                undefined ->
+                    %% Unparsable mountpoint or without value
+                    Text = clique_status:text("Invalid mountpoint value"),
+                    [clique_status:alert([Text])];
+                Mountpoint ->
+                    QueryString1 = QueryString0 ++ " AND mountpoint=\"" ++ Mountpoint ++ "\"",
+                    vmq_ql_query_mgr:fold_query(
+                        fun(Row, _) ->
+                            QueuePid = maps:get(queue_pid, Row),
+                            vmq_queue:force_disconnect(QueuePid, ?USE_ANOTHER_SERVER, false, Properties)
+                        end,
+                        ok,
+                        QueryString1
+                    ),
+                    [clique_status:text("Done")]
+            end;
+        (_, _, _) ->
+            Text = clique_status:text(vmq_session_disconnect_usage()),
+            [clique_status:alert([Text])]
+    end,
+    clique:register_command(Cmd, KeySpecs, FlagSpecs, Callback).
+
+
 vmq_ql_callback(Table, DefaultFields, Opts) ->
     fun(_, [], Flags) ->
         Limit = proplists:get_value(limit, Flags, "100"),
@@ -621,6 +665,16 @@ vmq_session_reauthorize_usage() ->
     [
         "vmq-admin session reauthorize username=<Username> client-id=<ClientId>\n\n",
         "  Reauthorizes all current subscriptions of an existing client session. \n\n",
+        "  --mountpoint=<Mountpoint>, -m\n",
+        "      specifies the mountpoint, defaults to the default mountpoint",
+        "\n\n"
+    ].
+
+vmq_session_redirect_usage() ->
+    [
+        "vmq-admin session redirect client-id=<ClientId> reference=<ServerReference>\n\n",
+        "  Forcefully disconnects a client from the cluster and sends a reference to\n",
+        "  another server the client can connects to.\n\n",
         "  --mountpoint=<Mountpoint>, -m\n",
         "      specifies the mountpoint, defaults to the default mountpoint",
         "\n\n"

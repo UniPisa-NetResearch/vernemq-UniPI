@@ -142,4 +142,5 @@ terminate_reason(?DISCONNECT_KEEP_ALIVE) -> normal;
 terminate_reason(?DISCONNECT_MIGRATION) -> normal;
 terminate_reason(?NORMAL_DISCONNECT) -> normal;
 terminate_reason(?SESSION_TAKEN_OVER) -> normal;
+terminate_reason(?USE_ANOTHER_SERVER) -> normal;
 terminate_reason(Reason) -> Reason.
