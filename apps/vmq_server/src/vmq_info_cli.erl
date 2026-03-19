@@ -428,7 +428,7 @@ vmq_session_redirect_cmd() ->
                     [clique_status:text("Done")]
             end;
         (_, _, _) ->
-            Text = clique_status:text(vmq_session_disconnect_usage()),
+            Text = clique_status:text(vmq_session_redirect_usage()),
             [clique_status:alert([Text])]
     end,
     clique:register_command(Cmd, KeySpecs, FlagSpecs, Callback).
@@ -580,6 +580,7 @@ session_usage() ->
         "    show        Show and filter running sessions\n",
         "    unsubscribe Unsubscribes from a topic\n",
         "    disconnect  Forcefully disconnect a session\n",
+        "    redirect    Forcefully disconnect a session and sends a reference to another server\n",
         "    reauthorize Reauthorize subscriptions of a session\n",
         "  Use --help after a sub-command for more details.\n"
     ].
